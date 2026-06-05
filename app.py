@@ -29,6 +29,33 @@ def create_habit():
 
     return {"message": "Habit created"}, 201
 
+@app.route("/habits", methods=["GET"])
+def get_habits():
+    habits = Habit.query.all()
+
+    result = []
+
+    for habit in habits:
+        result.append({
+            "id": habit.id,
+            "name": habit.name,
+            "created_at": habit.created_at.isoformat()
+        })
+
+    return result, 200
+
+@app.route("/habits/<int:id>", methods=["DELETE"])
+def delete_habit(id):
+    habit = Habit.query.get(id)
+
+    if habit is None:
+        return {"error": "Habit not found"}, 404
+
+    db.session.delete(habit)
+    db.session.commit()
+
+    return {"message": "Habit deleted"}, 200
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
