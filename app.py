@@ -1,6 +1,6 @@
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, date
 
 app = Flask(__name__)
 
@@ -9,14 +9,32 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
+
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+class HabitLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    habit_id = db.Column(
+        db.Integer,
+        db.ForeignKey("habit.id"),
+        nullable=False
+    )
+
+    date = db.Column(
+        db.Date,
+        nullable=False
+    )
+
+
 @app.route("/")
 def home():
     return "Hello"
+
 
 @app.route("/habits", methods=["POST"])
 def create_habit():
@@ -28,6 +46,7 @@ def create_habit():
     db.session.commit()
 
     return {"message": "Habit created"}, 201
+
 
 @app.route("/habits", methods=["GET"])
 def get_habits():
@@ -44,6 +63,7 @@ def get_habits():
 
     return result, 200
 
+
 @app.route("/habits/<int:id>", methods=["DELETE"])
 def delete_habit(id):
     habit = Habit.query.get(id)
@@ -55,6 +75,40 @@ def delete_habit(id):
     db.session.commit()
 
     return {"message": "Habit deleted"}, 200
+
+
+@app.route("/habits/<int:id>/log", methods=["POST"])
+def log_habit(id):
+
+    habit = Habit.query.get(id)
+
+    if habit is None:
+        return {"error": "Habit not found"}, 404
+
+    today = date.today()
+
+    existing_log = HabitLog.query.filter_by(
+        habit_id=id,
+        date=today
+    ).first()
+
+    if existing_log:
+        return {
+            "error": "Habit already logged today"
+        }, 400
+
+    log = HabitLog(
+        habit_id=id,
+        date=today
+    )
+
+    db.session.add(log)
+    db.session.commit()
+
+    return {
+        "message": "Habit marked as done"
+    }, 201
+
 
 if __name__ == "__main__":
     with app.app_context():
