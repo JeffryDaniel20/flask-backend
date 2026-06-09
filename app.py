@@ -129,6 +129,33 @@ def log_habit(id):
         "message": "Habit marked as done"
     }, 201
 
+@app.route("/habits/<int:id>/stats", methods=["GET"])
+def habit_stats(id):
+
+    habit = Habit.query.get(id)
+
+    if habit is None:
+        return {"error": "Habit not found"}, 404
+
+    logs = HabitLog.query.filter_by(
+        habit_id=id
+    ).all()
+
+    logged_dates = {
+        log.date for log in logs
+    }
+
+    stats = []
+
+    for i in range(6, -1, -1):
+        day = date.today() - timedelta(days=i)
+
+        stats.append({
+            "date": day.isoformat(),
+            "completed": day in logged_dates
+        })
+
+    return stats, 200
 
 if __name__ == "__main__":
     with app.app_context():
