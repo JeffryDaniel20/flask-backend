@@ -1,184 +1,127 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date, timedelta
 
 app = Flask(__name__)
-
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///habits.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
 
+# ─── Models ───────────────────────────────────────────────────────────────────
+
 class Habit(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    logs       = db.relationship("HabitLog", backref="habit", lazy=True, cascade="all, delete-orphan")
+
+    def current_streak(self):
+        """Count consecutive days completed up to and including today."""
+        today = date.today()
+        streak = 0
+        check = today
+        logged_dates = {log.date for log in self.logs}
+        while check in logged_dates:
+            streak += 1
+            check -= timedelta(days=1)
+        return streak
+
+    def to_dict(self):
+        today = date.today()
+        today_logged = any(log.date == today for log in self.logs)
+        return {
+            "id":           self.id,
+            "name":         self.name,
+            "created_at":   self.created_at.isoformat(),
+            "streak":       self.current_streak(),
+            "done_today":   today_logged,
+        }
 
 
 class HabitLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id       = db.Column(db.Integer, primary_key=True)
+    habit_id = db.Column(db.Integer, db.ForeignKey("habit.id"), nullable=False)
+    date     = db.Column(db.Date, nullable=False, default=date.today)
 
-    habit_id = db.Column(
-        db.Integer,
-        db.ForeignKey("habit.id"),
-        nullable=False
-    )
-
-    date = db.Column(
-        db.Date,
-        nullable=False
+    __table_args__ = (
+        db.UniqueConstraint("habit_id", "date", name="unique_habit_date"),
     )
 
 
-def calculate_streak(habit_id):
-    logs = HabitLog.query.filter_by(
-        habit_id=habit_id
-    ).all()
-
-    logged_dates = {
-        log.date for log in logs
-    }
-
-    streak = 0
-    current_day = date.today()
-
-    while current_day in logged_dates:
-        streak += 1
-        current_day -= timedelta(days=1)
-
-    return streak
-
+# ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
-def home():
-    return "Hello"
-
-
-@app.route("/habits", methods=["POST"])
-def create_habit():
-
-    data = request.get_json()
-
-    if not data:
-        return {
-            "error": "Request body is required"
-        }, 400
-
-    if "name" not in data:
-        return {
-            "error": "Habit name is required"
-        }, 400
-
-    if not data["name"].strip():
-        return {
-            "error": "Habit name cannot be empty"
-        }, 400
-
-    habit = Habit(
-        name=data["name"].strip()
-    )
-
-    db.session.add(habit)
-    db.session.commit()
-
-    return {
-        "message": "Habit created"
-    }, 201
+def index():
+    return render_template("index.html")
 
 
 @app.route("/habits", methods=["GET"])
 def get_habits():
-    habits = Habit.query.all()
-
-    result = []
-
-    for habit in habits:
-        result.append({
-            "id": habit.id,
-            "name": habit.name,
-            "created_at": habit.created_at.isoformat(),
-            "streak": calculate_streak(habit.id)
-        })
-
-    return result, 200
+    habits = Habit.query.order_by(Habit.created_at).all()
+    return jsonify([h.to_dict() for h in habits]), 200
 
 
-@app.route("/habits/<int:id>", methods=["DELETE"])
-def delete_habit(id):
-    habit = Habit.query.get(id)
+@app.route("/habits", methods=["POST"])
+def create_habit():
+    data = request.get_json()
+    name = (data or {}).get("name", "").strip()
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    habit = Habit(name=name)
+    db.session.add(habit)
+    db.session.commit()
+    return jsonify(habit.to_dict()), 201
 
-    if habit is None:
-        return {"error": "Habit not found"}, 404
 
+@app.route("/habits/<int:habit_id>", methods=["DELETE"])
+def delete_habit(habit_id):
+    habit = db.session.get(Habit, habit_id)
+    if not habit:
+        return jsonify({"error": "Habit not found"}), 404
     db.session.delete(habit)
     db.session.commit()
+    return jsonify({"message": "Deleted"}), 200
 
-    return {"message": "Habit deleted"}, 200
 
-
-@app.route("/habits/<int:id>/log", methods=["POST"])
-def log_habit(id):
-
-    habit = Habit.query.get(id)
-
-    if habit is None:
-        return {"error": "Habit not found"}, 404
-
+@app.route("/habits/<int:habit_id>/log", methods=["POST"])
+def log_habit(habit_id):
+    habit = db.session.get(Habit, habit_id)
+    if not habit:
+        return jsonify({"error": "Habit not found"}), 404
     today = date.today()
-
-    existing_log = HabitLog.query.filter_by(
-        habit_id=id,
-        date=today
-    ).first()
-
-    if existing_log:
-        return {
-            "error": "Habit already logged today"
-        }, 400
-
-    log = HabitLog(
-        habit_id=id,
-        date=today
-    )
-
+    already_logged = HabitLog.query.filter_by(habit_id=habit_id, date=today).first()
+    if already_logged:
+        return jsonify({"error": "Already logged today"}), 409
+    log = HabitLog(habit_id=habit_id, date=today)
     db.session.add(log)
     db.session.commit()
+    return jsonify(habit.to_dict()), 201
 
-    return {
-        "message": "Habit marked as done"
-    }, 201
 
-@app.route("/habits/<int:id>/stats", methods=["GET"])
-def habit_stats(id):
-
-    habit = Habit.query.get(id)
-
-    if habit is None:
-        return {"error": "Habit not found"}, 404
-
-    logs = HabitLog.query.filter_by(
-        habit_id=id
-    ).all()
-
-    logged_dates = {
-        log.date for log in logs
-    }
-
+@app.route("/habits/<int:habit_id>/stats", methods=["GET"])
+def habit_stats(habit_id):
+    habit = db.session.get(Habit, habit_id)
+    if not habit:
+        return jsonify({"error": "Habit not found"}), 404
+    logged_dates = {log.date for log in habit.logs}
+    today = date.today()
     stats = []
-
-    for i in range(6, -1, -1):
-        day = date.today() - timedelta(days=i)
-
+    for i in range(6, -1, -1):          # oldest → newest
+        day = today - timedelta(days=i)
         stats.append({
-            "date": day.isoformat(),
-            "completed": day in logged_dates
+            "date":      day.isoformat(),
+            "label":     day.strftime("%a"),   # Mon, Tue …
+            "completed": day in logged_dates,
         })
+    return jsonify(stats), 200
 
-    return stats, 200
+
+# ─── Init ─────────────────────────────────────────────────────────────────────
+
+with app.app_context():
+    db.create_all()
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-
     app.run(debug=True)

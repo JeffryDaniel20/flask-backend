@@ -1,168 +1,62 @@
-# Flask Habit Tracker Backend
+# Habit Tracker
 
-A simple Flask REST API for tracking habits, daily completions, streaks, and weekly statistics.
+A full-stack habit tracking app built with Flask, SQLite, and vanilla JS.
 
-## Technologies Used
+## Features
+- Add and delete habits
+- Mark habits as done each day
+- Streak counter — tracks consecutive days completed
+- 7-day bar chart per habit (Chart.js)
+- Fully responsive
 
-* Python
-* Flask
-* Flask-SQLAlchemy
-* SQLite
+## Tech stack
+- **Backend**: Python + Flask + SQLAlchemy
+- **Database**: SQLite (local) 
+- **Frontend**: HTML + CSS + vanilla JavaScript + Chart.js
+- **Deploy**: Render
 
-## Installation
-
-### Clone the Repository
-
-```bash
-git clone https://github.com/JeffryDaniel20/flask-backend.git
-cd flask-backend
-```
-
-### Create Virtual Environment
+## Run locally
 
 ```bash
+# 1. Clone the repo
+git clone https://github.com/YOUR_USERNAME/habit-tracker
+cd habit-tracker
+
+# 2. Create and activate a virtual environment
 python -m venv venv
-```
+source venv/bin/activate      # Mac/Linux
+venv\Scripts\activate         # Windows
 
-### Activate Virtual Environment
+# 3. Install dependencies
+pip install -r requirements.txt
 
-PowerShell:
-
-```powershell
-venv\Scripts\Activate.ps1
-```
-
-### Install Dependencies
-
-```bash
-pip install flask flask-sqlalchemy
-```
-
-### Run the Application
-
-```bash
+# 4. Run the app
 python app.py
 ```
 
-Server URL:
+Visit `http://localhost:5000` in your browser.
 
-```text
-http://127.0.0.1:5000
-```
+## API endpoints
 
----
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/habits` | List all habits with streak + done_today |
+| POST | `/habits` | Create a habit `{"name": "..."}` |
+| DELETE | `/habits/<id>` | Delete a habit and all its logs |
+| POST | `/habits/<id>/log` | Mark habit as done today |
+| GET | `/habits/<id>/stats` | Last 7 days completion data |
 
-# API Endpoints
+## Deploy to Render
 
-## GET /
+1. Push this repo to GitHub
+2. Go to [render.com](https://render.com) → New Web Service
+3. Connect your GitHub repo
+4. Set build command: `pip install -r requirements.txt`
+5. Set start command: `gunicorn app:app`
+6. Deploy
 
-Returns a simple message.
+> **Note**: Render's free tier uses an ephemeral filesystem — SQLite data resets on redeploy. For persistent data, swap SQLite for Render's free PostgreSQL add-on.
 
-Response:
+## Screenshots
 
-```text
-Hello
-```
-
----
-
-## POST /habits
-
-Creates a new habit.
-
-Request:
-
-```json
-{
-  "name": "Exercise"
-}
-```
-
-Response:
-
-```json
-{
-  "message": "Habit created"
-}
-```
-
----
-
-## GET /habits
-
-Returns all habits.
-
-Response:
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Exercise",
-    "created_at": "2026-06-08T10:00:00",
-    "streak": 4
-  }
-]
-```
-
----
-
-## DELETE /habits/<id>
-
-Deletes a habit.
-
-Response:
-
-```json
-{
-  "message": "Habit deleted"
-}
-```
-
----
-
-## POST /habits/<id>/log
-
-Marks a habit as completed today.
-
-Response:
-
-```json
-{
-  "message": "Habit marked as done"
-}
-```
-
----
-
-## GET /habits/<id>/stats
-
-Returns completion status for the last 7 days.
-
-Response:
-
-```json
-[
-  {
-    "date": "2026-06-02",
-    "completed": false
-  },
-  {
-    "date": "2026-06-03",
-    "completed": true
-  }
-]
-```
-
----
-
-# Features
-
-* Create habits
-* View habits
-* Delete habits
-* Daily habit logging
-* Duplicate log prevention
-* Streak calculation
-* Weekly statistics
-* SQLite database storage
+_Add a screenshot here after your first deploy_
