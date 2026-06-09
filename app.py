@@ -57,14 +57,34 @@ def home():
 
 @app.route("/habits", methods=["POST"])
 def create_habit():
+
     data = request.get_json()
 
-    habit = Habit(name=data["name"])
+    if not data:
+        return {
+            "error": "Request body is required"
+        }, 400
+
+    if "name" not in data:
+        return {
+            "error": "Habit name is required"
+        }, 400
+
+    if not data["name"].strip():
+        return {
+            "error": "Habit name cannot be empty"
+        }, 400
+
+    habit = Habit(
+        name=data["name"].strip()
+    )
 
     db.session.add(habit)
     db.session.commit()
 
-    return {"message": "Habit created"}, 201
+    return {
+        "message": "Habit created"
+    }, 201
 
 
 @app.route("/habits", methods=["GET"])
