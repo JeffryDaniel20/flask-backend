@@ -1,6 +1,6 @@
 from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 app = Flask(__name__)
 
@@ -31,6 +31,25 @@ class HabitLog(db.Model):
     )
 
 
+def calculate_streak(habit_id):
+    logs = HabitLog.query.filter_by(
+        habit_id=habit_id
+    ).all()
+
+    logged_dates = {
+        log.date for log in logs
+    }
+
+    streak = 0
+    current_day = date.today()
+
+    while current_day in logged_dates:
+        streak += 1
+        current_day -= timedelta(days=1)
+
+    return streak
+
+
 @app.route("/")
 def home():
     return "Hello"
@@ -58,7 +77,8 @@ def get_habits():
         result.append({
             "id": habit.id,
             "name": habit.name,
-            "created_at": habit.created_at.isoformat()
+            "created_at": habit.created_at.isoformat(),
+            "streak": calculate_streak(habit.id)
         })
 
     return result, 200
